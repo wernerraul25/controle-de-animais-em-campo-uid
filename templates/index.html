@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contagem de Animais</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; background-color: #f0f2f5; 
+            text-align: center; padding: 30px;
+        }
+        h1, h2 { color: #333; }
+        
+        .container-contador {
+            display: flex; justify-content: center; gap: 30px;
+            margin-bottom: 30px; flex-wrap: wrap;
+        }
+        .contador-box {
+            background-color: #fff; padding: 30px 40px; border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1); min-width: 250px;
+        }
+        .contador-label { font-size: 1.2em; color: #555; margin-bottom: 15px; }
+        .contador-valor { font-size: 4em; font-weight: bold; }
+        #valor-bezerros { color: #e8710a; }
+        #valor-vacas { color: #1a73e8; }
+
+        /* Seção de Salvar Lote */
+        .salvar-lote-container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+            display: inline-block;
+        }
+        .salvar-lote-container input {
+            font-size: 1.1em;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            margin-right: 10px;
+        }
+        .salvar-lote-container button {
+            background-color: #28a745; color: white; border: none;
+            padding: 12px 25px; font-size: 1.1em; font-weight: bold;
+            border-radius: 5px; cursor: pointer; transition: background-color 0.3s;
+        }
+        .salvar-lote-container button:hover { background-color: #218838; }
+
+        .log-container {
+            margin-top: 30px; background-color: #fff; padding: 20px;
+            border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            display: block; width: 80%; min-width: 700px; margin: 30px auto;
+        }
+        .tabela-historico {
+            width: 100%; border-collapse: collapse; margin-top: 15px;
+        }
+        .tabela-historico th, .tabela-historico td {
+            border: 1px solid #ddd; padding: 12px;
+            text-align: left; vertical-align: middle;
+        }
+        .tabela-historico th { background-color: #f4f4f4; color: #333; }
+        
+        .anotacao-input { width: 95%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+        .btn-salvar-anotacao {
+            background-color: #007bff; color: white; border: none;
+            padding: 6px 10px; border-radius: 4px; cursor: pointer; margin-left: 5px;
+        }
+        .btn-excluir {
+            background-color: #dc3545; color: white; border: none;
+            padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Contagem de Animais</h1>
+
+    <div class="container-contador">
+        <div class="contador-box">
+            <div class="contador-label">Passagens (Bezerros)</div>
+            <div id="valor-bezerros" class="contador-valor">0</div>
+        </div>
+        <div class="contador-box">
+            <div class="contador-label">Passagens (Vacas)</div>
+            <div id="valor-vacas" class="contador-valor">0</div>
+        </div>
+    </div>
+
+    <div class="salvar-lote-container">
+        <input type="text" id="lote-anotacao" placeholder="Anotação para o lote (ex: Lote da Manhã)">
+        <button id="reset-button" onclick="salvarLote()">Salvar e Fechar Lote</button>
+    </div>
+    
+    <div class="log-container">
+        <h2>Animais no Lote Atual</h2>
+        <table class="tabela-historico" id="log-tabela-live">
+            <thead>
+                <tr>
+                    <th>Data/Hora</th>
+                    <th>UID da Tag</th>
+                </tr>
+            </thead>
+            <tbody id="log-tbody-live">
+                <tr><td colspan="2">Aguardando scans...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="log-container">
+        <h2>Histórico de Lotes Salvos</h2>
+        <table class="tabela-historico" id="log-tabela-historico">
+            <thead>
+                <tr>
+                    <th>Data Fechamento</th>
+                    <th>Bezerros (Passagens)</th>
+                    <th>Vacas (Passagens)</th>
+                    <th>Anotação</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody id="log-tbody-historico">
+                <tr><td colspan="5">Carregando histórico...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+
+    <script>
+        // Pega os elementos da UI
+        const logTbodyLive = document.getElementById('log-tbody-live');
+        const logTbodyHistorico = document.getElementById('log-tbody-historico');
+        const valorBezerrosEl = document.getElementById('valor-bezerros');
+        const valorVacasEl = document.getElementById('valor-vacas');
+        const anotacaoInput = document.getElementById('lote-anotacao');
+
+        // Busca TODOS os dados da API e redesenha a tela inteira.
+
+        async function fetchStatus() {
+            try {
+                const response = await fetch('/api/status'); 
+                const data = await response.json();
+                
+                // 1. Atualiza os Contadores do LOTE ATUAL
+                const counts = data.live_counts;
+                valorBezerrosEl.innerText = counts.bezerros || 0;
+                valorVacasEl.innerText = counts.vacas || 0;
+
+                // 2. Atualiza a Tabela de Log do LOTE ATUAL
+                const logLive = data.log_live;
+                logTbodyLive.innerHTML = ''; 
+                if (logLive.length === 0) {
+                    logTbodyLive.innerHTML = '<tr><td colspan="2">Nenhum scan no lote atual.</td></tr>';
+                } else {
+                    logLive.forEach(entrada => {
+                        const dataFormatada = new Date(entrada.timestamp).toLocaleString('pt-BR');
+                        const row = `
+                            <tr>
+                                <td>${dataFormatada}</td>
+                                <td><b>${entrada.tag_uid}</b></td>
+                            </tr>
+                        `;
+                        logTbodyLive.innerHTML += row;
+                    });
+                }
+                
+                // 3. Atualiza a Tabela de HISTÓRICO DE LOTES
+                const history = data.history;
+                logTbodyHistorico.innerHTML = '';
+                if (history.length === 0) {
+                    logTbodyHistorico.innerHTML = '<tr><td colspan="5">Nenhum lote salvo no histórico.</td></tr>';
+                } else {
+                    history.forEach(lote => {
+                        const dataFormatada = new Date(lote.data_fechamento).toLocaleString('pt-BR');
+                        const row = `
+                            <tr>
+                                <td>${dataFormatada}</td>
+                                <td><b>${lote.contagem_bezerros}</b></td>
+                                <td><b>${lote.contagem_vacas}</b></td>
+                                <td>
+                                    <input type="text" class="anotacao-input" id="anotacao-hist-${lote.id}" value="${lote.anotacao || ''}" placeholder="Adicionar nota...">
+                                    <button class="btn-salvar-anotacao" onclick="salvarAnotacaoHistorico(${lote.id})">Salvar</button>
+                                </td>
+                                <td>
+                                    <button class="btn-excluir" onclick="excluirLote(${lote.id})">Excluir</button>
+                                </td>
+                            </tr>
+                        `;
+                        logTbodyHistorico.innerHTML += row;
+                    });
+                }
+            } catch (error) {
+                console.error("Erro ao buscar status:", error);
+                logTbodyLive.innerHTML = '<tr><td colspan="2">Erro de conexão com o servidor.</td></tr>';
+                logTbodyHistorico.innerHTML = '<tr><td colspan="5">Erro de conexão com o servidor.</td></tr>';
+            }
+        }
+
+        // Chama a API para salvar o lote atual no histórico.
+        async function salvarLote() {
+            const anotacao = anotacaoInput.value;
+            if (!confirm(`Salvar o lote atual com a anotação "${anotacao}" e limpar o log ao vivo?`)) {
+                return;
+            }
+            try {
+                const response = await fetch('/api/salvar_lote', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ anotacao: anotacao })
+                });
+                if (response.ok) {
+                    anotacaoInput.value = ''; // Limpa o campo de anotação
+                    await fetchStatus(); // Atualiza toda a UI
+                }
+            } catch (error) {
+                console.error("Erro de rede:", error);
+            }
+        }
+
+        // Chama a API para excluir um LOTE ARQUIVADO.
+        async function excluirLote(idLote) {
+            if (!confirm(`Tem certeza que deseja EXCLUIR o lote ID ${idLote} do histórico?`)) {
+                return;
+            }
+            try {
+                const response = await fetch(`/api/historico/${idLote}`, { method: 'DELETE' });
+                if (response.ok) {
+                    await fetchStatus(); // Atualiza
+                }
+            } catch (error) {
+                console.error("Erro de rede:", error);
+            }
+        }
+
+        // Chama a API para salvar a anotação de um LOTE ARQUIVADO.
+        async function salvarAnotacaoHistorico(idLote) {
+            const anotacaoTexto = document.getElementById(`anotacao-hist-${idLote}`).value;
+            try {
+                const response = await fetch(`/api/historico/${idLote}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ anotacao: anotacaoTexto })
+                });
+                if (response.ok) {
+                    alert("Anotação salva!");
+                }
+            } catch (error) {
+                console.error("Erro de rede:", error);
+            }
+        }
+
+        // --- Inicialização ---
+        fetchStatus(); // Chama na primeira vez
+        setInterval(fetchStatus, 3000); // Atualiza tudo a cada 3 segundos
+    </script>
+
+</body>
+</html>
